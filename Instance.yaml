@@ -1,0 +1,20 @@
+Description: This template will launch the EC2 linux instance in mumbai region
+Mappings:
+  RegionMap:
+    us-east-2:
+      AMI: ami-0d8f6eb4f641ef691
+Resources:
+  TestEC2Instance:
+    Type: "AWS::EC2::Instance"
+    Properties:
+      KeyName: !Ref KeyName
+      ImageId: !FindInMap
+       - RegionMap
+       - !Ref 'AWS::Region'
+       - AMI
+      AvailabilityZone: us-east-2a
+      InstanceType: t2.micro
+      KeyName: LinuxOhio18Apr
+      SecurityGroupIds:
+        - sg-02cbea40d0c15bf65
+      SubnetId: subnet-045ba37ad63f98896

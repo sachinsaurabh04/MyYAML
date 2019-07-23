@@ -1,0 +1,168 @@
+AWSTemplateFormatVersion: 2010-09-09
+Parameters:
+  KeyName:
+    Description: The EC2 key pair to allow ssh access
+    Type: String
+    MinLength: '1'
+    MaxLength: '255'
+    AllowedPattern: '[\x20-\x7E]*'
+    ConstraintDescription: can contain only ASCII characters.
+   
+  InstanceType:
+    Description: Select the insta -nce
+    Type: String
+    Default: t2.micro
+    AllowedValues: 
+      - t2.micro 
+    ConstraintDescription: Must be a t2 micro     
+
+  SSHLocation:
+    Description: 'The Ip address range that can be used to ssh the intance'
+    Type: String
+    MinLength: '9'
+    MaxLength: '18'
+    Default: 0.0.0.0/0
+    AllowedPattern: '(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})/(\d{1,2})'
+    ConstraintDescription: Must be a valid cidr range of the form x.x.x.x/x    
+
+Mappings:
+  RegionMap:
+    ap-south-1: 
+      AMI: ami-00b6a8a2bd28daf19
+   
+Resources:
+  VPC:
+    Type: 'AWS::EC2::VPC'
+    Properties:
+      EnableDnsSupport: 'true'
+      EnableDnsHostnames: 'true'
+      CidrBlock: 10.0.0.0/16
+      Tags:
+        - Key: Application
+          Value: !Ref 'AWS::StackId'
+        - Key: Name
+          Value: MyVPC
+
+  Subnet:
+    Type: 'AWS::EC2::Subnet'
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: 10.0.0.0/24
+      AvailabilityZone: ap-south-1a
+      Tags:
+        - Key: Application
+          Value: !Ref 'AWS::StackId'
+        - Key: Name 
+          Value: mysubnet
+
+  InternetGateway:
+    Type: 'AWS::EC2::InternetGateway'
+    Properties:
+      Tags:
+        - Key: Application
+          Value: !Ref 'AWS::StackId'
+
+  AttachGateway:
+    Type: 'AWS::EC2::VPCGatewayAttachment'
+    Properties:
+      VpcId: !Ref VPC
+      InternetGatewayId: !Ref InternetGateway
+
+  RouteTable:
+    Type: 'AWS::EC2::RouteTable'
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Application
+          Value: !Ref 'AWS::StackId'    
+
+  Route:
+    Type: 'AWS::EC2::Route'
+    DependsOn: AttachGateway
+    Properties:
+      RouteTableId: !Ref RouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+  
+  SubnetRouteTableAssociation:
+    Type: 'AWS::EC2::SubnetRouteTableAssociation'
+    Properties:
+      SubnetId: !Ref Subnet
+      RouteTableId: !Ref RouteTable
+ 
+  SubnetNetworkAclAssociation:
+    Type: 'AWS::EC2::SubnetNetworkAclAssociation'
+    Properties:
+      SubnetId: !Ref Subnet
+      NetworkAclId: !GetAtt VPC.DefaultNetworkAcl
+
+  InBoundSSHNetworkAclEntry:
+    Type: 'AWS::EC2::NetworkAclEntry'
+    Properties:
+      NetworkAclId: !GetAtt VPC.DefaultNetworkAcl
+      RuleNumber: '101'
+      Protocol: '4'
+      RuleAction: allow
+      Egress: 'false'
+      CidrBlock: 10.0.0.0/24
+      PortRange:
+          From: '22'
+          To: '22'
+  
+  InBoundResponsePortsNetworkAclEntry:
+    Type: 'AWS::EC2::NetworkAclEntry'
+    Properties:
+      NetworkAclId: !GetAtt VPC.DefaultNetworkAcl
+      RuleNumber: '102'
+      Protocol: '4'
+      RuleAction: allow
+      Egress: 'false'
+      CidrBlock: 10.0.0.0/24
+      PortRange:
+        From: '1024'
+        To: '65535'
+  
+  OutBoundResponsePortsNetworkAclEntry:
+    Type: 'AWS::EC2::NetworkAclEntry'
+    Properties:
+      NetworkAclId: !GetAtt VPC.DefaultNetworkAcl
+      RuleNumber: '101'
+      Protocol: '4'
+      RuleAction: allow
+      Egress: 'true'
+      CidrBlock: 10.0.0.0/24
+      PortRange:
+        From: '1024'
+        To: '65535'
+ 
+  InstanceSecurityGroup:
+    Type: 'AWS::EC2::SecurityGroup'
+    Properties:
+      VpcId: !Ref VPC
+      GroupDescription: Enable ssh via ssh port 22
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: '22'
+          ToPort: '22'
+          CidrIp: !Ref SSHLocation
+
+  Ec2Instance:
+    Type: 'AWS::EC2::Instance'
+    Properties:
+      KeyName: !Ref KeyName
+      ImageId: !FindInMap
+        - RegionMap
+        - !Ref 'AWS::Region'
+        - AMI
+      AvailabilityZone: ap-south-1a 
+      InstanceType: !Ref InstanceType
+      Tags:
+        - Key: Application
+          Value: 'AWS::StackID'
+      NetworkInterfaces:
+        - AssociatePublicIpAddress: 'true'
+          GroupSet: 
+          - !Ref InstanceSecurityGroup
+          DeviceIndex: '0'
+          DeleteOnTermination: 'true'
+          SubnetId: !Ref Subnet
