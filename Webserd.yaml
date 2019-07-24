@@ -1,4 +1,7 @@
-Description: This template deploys a VPC, With a pair of public and private subnets across two AvailabilityZones. It Deploys an Internet Gateway, With a default route on the public subnet. It Deploys a NAT Gateway for the private subnet. It Deploys httpd in public EC2 instance and installs mysql in private EC2 instance.
+Description: This template deploys a VPC, With a pair of public and private subnets across 
+  two AvailabilityZones. It Deploys an Internet Gateway, With a default route on the public 
+  subnet. It Deploys a NAT Gateway for the private subnet. It Deploys httpd in public EC2 
+  instance and installs mysql in private EC2 instance.
 
 Mappings:
   RegionMap:
