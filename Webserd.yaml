@@ -108,3 +108,13 @@ Resources:
       RouteTableId: !Ref MyRtPri
       DestinationCidrBlock: 0.0.0.0/0
       NatGatewayId: !Ref NAT
+  
+  PublicInstanceSecGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Limits security group to allow port 22 and 80
+      VpcId:
+      
+
+
+      #this is change in the file
