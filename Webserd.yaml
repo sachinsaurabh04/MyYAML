@@ -1,7 +1,9 @@
+Description: This template deploys a VPC, With a pair of public and private subnets across two AvailabilityZones. It Deploys an Internet Gateway, With a default route on the public subnet. It Deploys a NAT Gateway for the private subnet. It Deploys httpd in public EC2 instance and installs mysql in private EC2 instance.
+
 Mappings:
   RegionMap:
     us-east-1:
-      AMI: sfdb
+      AMI: ami-0b898040803850657
 Resources:
   MyVPC:
     Type: 'AWS::EC2::VPC'
@@ -91,7 +93,7 @@ Resources:
        Fn::GetAtt:
        - EIP
        - AllocationId
-     SubnetId: !Ref MyPrivateSubnet
+     SubnetId: !Ref MyPublicSubnet
      Tags:
      - Key: Name
        Value: MyNat
@@ -113,8 +115,95 @@ Resources:
     Type: AWS::EC2::SecurityGroup
     Properties:
       GroupDescription: Limits security group to allow port 22 and 80
-      VpcId:
-      
+      VpcId: !Ref MyVPC
+      SecurityGroupIngress:
+      - IpProtocol: tcp
+        FromPort: 80
+        ToPort: 80
+        CidrIp: 0.0.0.0/0
+      - IpProtocol: tcp
+        FromPort: 22
+        ToPort: 22
+        CidrIp: 0.0.0.0/0
+      SecurityGroupEgress:
+      - IpProtocol: tcp
+        FromPort: 80
+        ToPort: 80
+        CidrIp: 0.0.0.0/0
+      - IpProtocol: tcp
+        FromPort: 22
+        ToPort: 22
+        CidrIp: 0.0.0.0/0
 
+  PrivateInstanceSecGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties: 
+      GroupDescription: Limits group to allow port 22 and 3306
+      VpcId: !Ref MyVPC
+      SecurityGroupIngress:
+      - IpProtocol: tcp
+        FromPort: 3306
+        ToPort: 3306
+        CidrIp: 0.0.0.0/0
+      - IpProtocol: tcp
+        FromPort: 22
+        ToPort: 22
+        CidrIp: 0.0.0.0/0
+  
+  LinPubInsWebser:
+    Type: AWS::EC2::Instance
+    Properties:
+      AvailabilityZone: us-east-1a
+      KeyName: nvirlin24jul
+      ImageId: !FindInMap
+        - RegionMap
+        - !Ref 'AWS::Region'
+        - AMI
+      Tags:
+        - Key: Name
+          Value: Webserver
+      InstanceType: t2.micro
+      Monitoring: 'false'
+      UserData:
+        Fn::Base64:
+          !Sub |
+            #!/bin/bash -ex
+            yum update -y
+            yum install -y httpd;
+            service httpd start;
+      NetworkInterfaces:
+        - AssociatePublicIpAddress: 'true'
+          GroupSet: 
+          - !Ref PublicInstanceSecGroup
+          DeviceIndex: '0'
+          DeleteOnTermination: 'true'
+          SubnetId: !Ref MyPublicSubnet
 
-      #this is change in the file
+  LinPriInsDBser:
+    Type: AWS::EC2::Instance
+    Properties:
+      AvailabilityZone: "us-east-1b"
+      KeyName: nvirlin24jul
+      ImageId: !FindInMap
+        - RegionMap
+        - !Ref 'AWS::Region'
+        - AMI
+      Tags:
+        - Key: Name
+          Value: Database Server
+      InstanceType: t2.micro
+      Monitoring: 'false'
+      UserData:
+        Fn::Base64:
+          !Sub |
+            #!/bin/bash -ex
+            yum update -y
+            yum install -y mysql;
+            service httpd mysql;
+      NetworkInterfaces:
+        - AssociatePublicIpAddress: 'false'
+          GroupSet: 
+          - !Ref PrivateInstanceSecGroup
+          DeviceIndex: '0'
+          DeleteOnTermination: 'true'
+          SubnetId: !Ref MyPrivateSubnet
